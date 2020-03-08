@@ -1,0 +1,97 @@
+# Playbook to backup running configs from (Cisco IOS) network devices to Git
+#
+# Gather the config via ios_facts, store it in the local directory {{ config_path }}
+# Sanitize config files / remove lines with timestamps like {{ timestamp_line_identifier }}
+# Commit to git, only if neccessary
+# Report all steps to {{ syslog_host }}
+#
+# You might want to change the vars config_path, syslog_host and timestamp_line_identifier
+# Uncomment the line 'git push -f origin master' if you want to push to a central repo like GitHub/Lab
+
+
+---
+- name: CONFIG BACKUP TO LOCAL DIRECTORY
+  hosts: all
+  connection: network_cli
+  ignore_errors: yes
+  gather_facts: no
+
+  vars:
+    config_path: /home/nwmichl/configs
+    syslog_host: 192.168.1.12
+    timestamp_line_identifier: "! Last configuration"
+
+  tasks:
+
+    - name: GATHER FACTS VIA SSH
+      ios_facts:
+        gather_subset:
+          - config
+      register: ios_facts_result
+      when: ansible_network_os == 'ios'
+
+    - name: SAVE CONFIG TO FILE
+      local_action: copy content={{ ansible_net_config }} dest={{ config_path }}/{{ inventory_hostname }}.txt
+      when: "ansible_network_os == 'ios' and not ios_facts_result.failed"
+
+    - name: SYSLOG MESSAGE - SUCCESSFUL
+      shell: |
+        logger -n {{ syslog_host }} -p local0.notice --udp Config Backup of "{{ inventory_hostname }}" successful
+      when: "ansible_network_os == 'ios' and not ios_facts_result.failed"
+
+    - name: SYSLOG MESSAGE - ERROR
+      shell: |
+        logger -n {{ syslog_host }} -p local0.error --udp Config Backup of "{{ inventory_hostname }}" FAILED because "{{ ios_facts_result.msg }}"
+      when: "ansible_network_os == 'ios' and ios_facts_result.failed"
+
+#
+# The following tasks will only be executed once
+#
+
+    - name: REMOVE CONFIG LINES WITH TIMESTAMPS LIKE '! Last configuration change'
+      shell: |
+        sed -i -e '/^{{ timestamp_line_identifier }}/d' {{ config_path }}/*.txt
+      args:
+        warn: no
+      delegate_to: localhost
+      run_once: true
+
+    - name: GIT - ADD ALL (NEW) FILES AND CHECK IF WORKING DIRECTORY IS DIRTY => FAILED
+      shell: |
+        cd configs/
+        git add --all .
+        git diff-index --quiet HEAD #Return code = 0 if working directory is clean and 1 if dirty
+      delegate_to: localhost
+      register: git_result
+      run_once: true
+
+    - name: SYSLOG MESSAGE - Git Dir clean - Nothing to commit
+      shell: |
+        logger -n {{ syslog_host }} -p local0.notice --udp Config Backup - GIT Working Directory is clean - Nothing to commit
+      when: not git_result.failed
+      delegate_to: localhost
+      run_once: true
+
+    - name: GIT - COMMIT/PUSH ONLY IF WORKING DIRECTORY IS DIRTY
+      shell: |
+        cd configs/
+        git commit -m "Config backup taken $(date +"%Y-%m-%d %H:%M:%S")"
+#        git push -f origin master
+      delegate_to: localhost
+      register: gitcommit_result
+      run_once: true
+      when: git_result.failed
+
+    - name: SYSLOG MESSAGE - GIT COMMIT/PUSH SUCCESSFUL
+      shell: |
+        logger -n {{ syslog_host }} -p local0.notice --udp Config Backup - GIT Commit / Push successful
+      when: gitcommit_result.failed is defined and not gitcommit_result.failed
+      delegate_to: localhost
+      run_once: true
+
+    - name: SYSLOG MESSAGE - GIT COMMIT/PUSH ERROR
+      shell: |
+        logger -n {{ syslog_host }} -p local0.error --udp Config Backup - GIT Commit / Push FAILED !
+      when: gitcommit_result.failed is defined and gitcommit_result.failed
+      delegate_to: localhost
+      run_once: true
