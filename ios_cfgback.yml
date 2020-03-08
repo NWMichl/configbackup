@@ -30,25 +30,31 @@
       register: ios_facts_result
       when: ansible_network_os == 'ios'
 
+    - name: SYSLOG MESSAGE - GATHER FACTS ERROR
+      shell: |
+        logger -n {{ syslog_host }} -p local0.error --udp Config Backup of "{{ inventory_hostname }}" GATHER FACTS FAILED because "{{ ios_facts_result.msg }}"
+      when: "ansible_network_os == 'ios' and ios_facts_result.failed"
+
     - name: SAVE CONFIG TO FILE
       local_action: copy content={{ ansible_net_config }} dest={{ config_path }}/{{ inventory_hostname }}.txt
+      register: save_result
       when: "ansible_network_os == 'ios' and not ios_facts_result.failed"
+
+    - name: SYSLOG MESSAGE - SAVE CONFIG ERROR
+      shell: |
+        logger -n {{ syslog_host }} -p local0.error --udp Config Backup of "{{ inventory_hostname }}" SAVE FAILED because "{{ save_result.msg }}"
+      when: "ansible_network_os == 'ios' and save_result.failed"
 
     - name: SYSLOG MESSAGE - SUCCESSFUL
       shell: |
         logger -n {{ syslog_host }} -p local0.notice --udp Config Backup of "{{ inventory_hostname }}" successful
-      when: "ansible_network_os == 'ios' and not ios_facts_result.failed"
-
-    - name: SYSLOG MESSAGE - ERROR
-      shell: |
-        logger -n {{ syslog_host }} -p local0.error --udp Config Backup of "{{ inventory_hostname }}" FAILED because "{{ ios_facts_result.msg }}"
-      when: "ansible_network_os == 'ios' and ios_facts_result.failed"
+      when: "ansible_network_os == 'ios' and not ios_facts_result.failed and not save_result.failed"
 
 #
 # The following tasks will only be executed once
 #
 
-    - name: REMOVE CONFIG LINES WITH TIMESTAMPS LIKE '! Last configuration change'
+    - name: REMOVE CONFIG LINES WITH TIMESTAMPS
       shell: |
         sed -i -e '/^{{ timestamp_line_identifier }}/d' {{ config_path }}/*.txt
       args:
@@ -67,7 +73,7 @@
 
     - name: SYSLOG MESSAGE - Git Dir clean - Nothing to commit
       shell: |
-        logger -n {{ syslog_host }} -p local0.notice --udp Config Backup - GIT Working Directory is clean - Nothing to commit
+        logger -n {{ syslog_host }} -p local0.notice --udp Config Backup - GIT Working Directory {{ config_path }} is clean - Nothing to commit
       when: not git_result.failed
       delegate_to: localhost
       run_once: true
