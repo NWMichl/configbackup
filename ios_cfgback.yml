@@ -64,7 +64,7 @@
 
     - name: GIT - ADD ALL (NEW) FILES AND CHECK IF WORKING DIRECTORY IS DIRTY => FAILED
       shell: |
-        cd configs/
+        cd {{ config_path }}/
         git add --all .
         git diff-index --quiet HEAD #Return code = 0 if working directory is clean and 1 if dirty
       delegate_to: localhost
@@ -80,7 +80,7 @@
 
     - name: GIT - COMMIT/PUSH ONLY IF WORKING DIRECTORY IS DIRTY
       shell: |
-        cd configs/
+        cd {{ config_path }}/
         git commit -m "Config backup taken $(date +"%Y-%m-%d %H:%M:%S")"
 #        git push -f origin master
       delegate_to: localhost
