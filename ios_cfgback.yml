@@ -50,17 +50,16 @@
         logger -n {{ syslog_host }} -p local0.notice --udp Config Backup of "{{ inventory_hostname }}" successful
       when: "ansible_network_os == 'ios' and not ios_facts_result.failed and not save_result.failed"
 
+    - name: REMOVE CONFIG LINES WITH TIMESTAMPS
+      lineinfile:
+        path: "{{ config_path }}/{{ inventory_hostname }}.txt"
+        state: absent
+        regexp: '^{{ timestamp_line_identifier }}'
+      delegate_to: localhost
+
 #
 # The following tasks will only be executed once
 #
-
-    - name: REMOVE CONFIG LINES WITH TIMESTAMPS
-      shell: |
-        sed -i -e '/^{{ timestamp_line_identifier }}/d' {{ config_path }}/*.txt
-      args:
-        warn: no
-      delegate_to: localhost
-      run_once: true
 
     - name: GIT - ADD ALL (NEW) FILES AND CHECK IF WORKING DIRECTORY IS DIRTY => FAILED
       shell: |
