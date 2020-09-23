@@ -1,0 +1,111 @@
+!
+! Last configuration change at 15:45:20 UTC Wed Sep 23 2020
+!
+version 15.4
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+no platform punt-keepalive disable-kernel-core
+platform console virtual
+!
+hostname CSR-1
+!
+boot-start-marker
+boot-end-marker
+!
+!
+enable secret 5 $1$dFds$qgqidV9UJRC3pO5sxxolB1
+enable password 7 153F0A1E09253F747F
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+
+
+ip domain name example.com
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+multilink bundle-name authenticated
+!
+!
+license udi pid CSR1000V sn 9IUN3WAY5XY
+!
+username admin privilege 15 password 7 0722205E43060D
+username nwmichl privilege 15 password 7 062B0E3341411D
+!
+redundancy
+ mode none
+!
+!
+lldp run
+cdp run
+!
+ip ssh version 2
+no ip ssh server authenticate user keyboard
+!
+!
+!
+!
+interface GigabitEthernet1
+ ip address 192.168.10.211 255.255.255.0
+ negotiation auto
+ no lldp transmit
+ no lldp receive
+!
+interface GigabitEthernet2
+ description Connected to CSR-2.example.com via its GigabitEthernet2
+ ip address 172.16.0.1 255.255.0.0
+ negotiation auto
+ cdp enable
+!
+interface GigabitEthernet3
+ description Connected to CSR-2.example.com via its GigabitEthernet3
+ ip address 172.17.0.1 255.255.0.0
+ negotiation auto
+ cdp enable
+!
+interface GigabitEthernet4
+ description Connected to N9K-1(9CN8KL239Z6) via its Ethernet1/1
+ ip address 172.18.0.1 255.255.0.0
+ negotiation auto
+ cdp enable
+!
+!
+virtual-service csr_mgmt
+!
+ip forward-protocol nd
+!
+ip http server
+no ip http secure-server
+!
+!
+!
+!
+control-plane
+!
+!
+line con 0
+ stopbits 1
+line aux 0
+ stopbits 1
+line vty 0 4
+ password 7 112418171A1D1F
+ login local
+ transport input ssh
+!
+!
+end
